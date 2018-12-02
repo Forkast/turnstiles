@@ -23,7 +23,7 @@ static_assert(
 static_assert(sizeof(Mutex) <= 8, "Mutex is too large");
 
 void DummyTest() {
-  int shared_cntr;
+  int shared_cntr = 0;
   int const kNumRounds = 100;
   Mutex mu;
 
