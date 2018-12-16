@@ -7,7 +7,8 @@
 
 class Mutex {
  private:
-   uint64_t refs;
+  uint64_t refs;
+
  public:
   Mutex();
   ~Mutex();
