@@ -45,17 +45,15 @@ namespace ts_pool
    */
   void ts_erase(const void * obj) {
     TurnstileChain * tc = ts_get_chain(obj);
-    std::shared_ptr<Turnstile> ts;
-    for (auto i = tc->ts.begin(); i != tc->ts.end(); ++i) {
+    for (std::vector<std::shared_ptr<Turnstile> >::iterator i = tc->ts.begin(); i != tc->ts.end(); ++i) {
       if ((*i)->obj == obj) {
-        ts = (*i);
+        sec.lock();
+        ts_free.push(std::move(*i));
+        sec.unlock();
         tc->ts.erase(i);
-        break;
+        return;
       }
     }
-    sec.lock();
-    ts_free.push(ts);
-    sec.unlock();
   }
 
   /**
@@ -73,11 +71,13 @@ namespace ts_pool
     /* if this is the first mutex on this turnstile do nothing */
     if (refs != 1) {
       if (ts == nullptr) {
+        assert(refs == 2);
         /* this is the second reference, so we need alloc and go to sleep */
         sec.lock();
         if (!ts_free.empty()) {
           ts = ts_free.top();
           ts_free.pop();
+          assert(ts != nullptr);
         }
         sec.unlock();
         /* if there is no available turnstiles on the free_list */
@@ -85,6 +85,7 @@ namespace ts_pool
           ts = std::shared_ptr<Turnstile>{new Turnstile{}};
         }
         ts->obj = obj;
+        assert(ts != nullptr);
         tc->ts.push_back(ts);
       }
       /* lend your semaphore to the turnstile */
@@ -92,14 +93,21 @@ namespace ts_pool
       tc->sec.unlock();
 
       /* start sleeping */
-      ts->mutex_pool[0]->wait();
-    } else {
-      tc->sec.unlock();
+      ts->mutex_pool.at(0)->wait();
+
+      sem = std::move(ts->mutex_pool.back());
+      ts->mutex_pool.pop_back();
+
+      if (ts->mutex_pool.empty()) {
+        ts_erase(obj);
+      }
+
     }
+    tc->sec.unlock();
     return std::move(sem);
   }
 
-  std::unique_ptr<Semaphore> ts_unlock(const void * obj, uint64_t & refs, std::unique_ptr<Semaphore> sem) {
+  void ts_unlock(const void * obj, uint64_t & refs) {
     std::shared_ptr<Turnstile> ts = ts_lookup(obj);
     TurnstileChain * tc = ts_get_chain(obj);
 
@@ -109,26 +117,11 @@ namespace ts_pool
 
     if (ts != nullptr) assert(!ts->mutex_pool.empty());
 
-    /* If this thread does not have semaphore, it means it needs to take one */
-    if (sem == nullptr) {
-      assert(ts != nullptr);
-      sem = std::move(ts->mutex_pool.back());
-      ts->mutex_pool.pop_back();
-    }
-
     /* If there is turnstile for this mutex, we might need to release semaphore */
     if (ts != nullptr) {
-      if (!ts->mutex_pool.empty()) {
-        ts->mutex_pool[0]->notify();
-      } else {
-        /* there is no more mutexes on this turnstile. release it to the free_queue */
-        assert(refs == 0);
-
-        ts_erase(obj);
-      }
+      ts->mutex_pool.at(0)->notify();
+    } else {
+      tc->sec.unlock();
     }
-
-    tc->sec.unlock();
-    return std::move(sem);
   }
 }

@@ -46,7 +46,7 @@ namespace ts_pool {
 
   std::unique_ptr<Semaphore> ts_lock(const void * obj, uint64_t & refs, std::unique_ptr<Semaphore>&& sem);
 
-  std::unique_ptr<Semaphore> ts_unlock(const void * obj, uint64_t & refs, std::unique_ptr<Semaphore> sem);
+  void ts_unlock(const void * obj, uint64_t & refs);
 
 }
 

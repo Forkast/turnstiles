@@ -22,5 +22,5 @@ void Mutex::lock()
 }
 void Mutex::unlock()
 {
-  semaphore = ts_pool::ts_unlock((void *) this, refs, std::move(semaphore));
+  ts_pool::ts_unlock((void *) this, refs);
 }
