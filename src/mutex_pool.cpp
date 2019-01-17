@@ -1,6 +1,7 @@
 #include "mutex_pool.h"
 
 #include <stack>
+#include <unistd.h>
 
 namespace ts_pool {
 /**
@@ -29,7 +30,7 @@ inline TurnstileChain* ts_get_chain(const void* obj) {
  */
 std::shared_ptr<Turnstile> ts_lookup(const void* obj) {
   TurnstileChain* tc = ts_get_chain(obj);
-  tc->sec.lock();
+  tc->sec.wait();
   for (auto i : tc->ts) {
     if (i->obj == obj) {
       return i;
@@ -56,7 +57,7 @@ void ts_erase(const void* obj) {
 }
 
 /**
- * If this is the second thread to call ts_lock it will lends its semaphore to
+ * If this is the second thread to call ts_lock it will lend its semaphore to
  * the turnstile and go to sleep. If it is the first one, it will only change
  * number of references.
  */
@@ -91,19 +92,21 @@ std::unique_ptr<Semaphore> ts_lock(const void* obj, uint64_t& refs,
     }
     /* lend your semaphore to the turnstile */
     ts->mutex_pool.push_back(std::move(sem));
-    tc->sec.unlock();
+    Semaphore * s1 = ts->mutex_pool.at(0).get();
+    tc->sec.notify();
 
     /* start sleeping */
-    ts->mutex_pool.at(0)->wait();
-
+    s1->wait();
     sem = std::move(ts->mutex_pool.back());
     ts->mutex_pool.pop_back();
 
     if (ts->mutex_pool.empty()) {
       ts_erase(obj);
+    } else {
+      assert(ts->mutex_pool.at(0) != nullptr);
     }
   }
-  tc->sec.unlock();
+  tc->sec.notify();
   return std::move(sem);
 }
 
@@ -121,7 +124,7 @@ void ts_unlock(const void* obj, uint64_t& refs) {
   if (ts != nullptr) {
     ts->mutex_pool.at(0)->notify();
   } else {
-    tc->sec.unlock();
+    tc->sec.notify();
   }
 }
 }  // namespace ts_pool

@@ -14,9 +14,11 @@ class Semaphore {
  private:
   std::mutex mut;
   std::condition_variable con;
-  unsigned long count = 0;  // Initialized as locked.
+  unsigned long count;
 
  public:
+  Semaphore() : count{0} {};
+  Semaphore(unsigned long count) : count{count} {};
   void notify() {
     std::lock_guard<decltype(mut)> lock(mut);
     ++count;
@@ -41,7 +43,7 @@ struct Turnstile {
 struct TurnstileChain {
   /* every chains has few turnstiles because hashes might collide */
   std::vector<std::shared_ptr<Turnstile> > ts;
-  std::mutex sec;
+  Semaphore sec{1};
 };
 
 std::unique_ptr<Semaphore> ts_lock(const void* obj, uint64_t& refs,
