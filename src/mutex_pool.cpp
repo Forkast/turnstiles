@@ -1,7 +1,6 @@
 #include "mutex_pool.h"
 
 #include <stack>
-#include <unistd.h>
 
 namespace ts_pool {
 /**
@@ -92,7 +91,7 @@ std::unique_ptr<Semaphore> ts_lock(const void* obj, uint64_t& refs,
     }
     /* lend your semaphore to the turnstile */
     ts->mutex_pool.push_back(std::move(sem));
-    Semaphore * s1 = ts->mutex_pool.at(0).get();
+    Semaphore* s1 = ts->mutex_pool.at(0).get();
     tc->sec.notify();
 
     /* start sleeping */
