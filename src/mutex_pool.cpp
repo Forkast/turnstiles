@@ -85,6 +85,20 @@ std::unique_ptr<Semaphore> ts_lock(const void* obj, uint64_t& refs,
       if (ts == nullptr) {
         ts = std::shared_ptr<Turnstile>{new Turnstile{}};
       }
+      /* lend your semaphore to the turnstile */
+      ts->mutex_pool.push_back(std::move(sem));
+      Semaphore * s1 = ts->mutex_pool.at(0).get();
+      tc->sec.unlock();
+
+      /* start sleeping */
+      s1->wait();
+
+      sem = std::move(ts->mutex_pool.back());
+      ts->mutex_pool.pop_back();
+
+      if (ts->mutex_pool.empty()) {
+        ts_erase(obj);
+      }
       ts->obj = obj;
       assert(ts != nullptr);
       tc->ts.push_back(ts);
