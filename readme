@@ -1,0 +1,18 @@
+Implementation of turnstiles in C++ for linux.
+
+According to FreeBSD manual:
+     Turnstiles	are used to hold a queue of threads blocked on non-sleepable
+     locks.  Sleepable locks use condition variables to	implement their
+     queues.  Turnstiles differ	from a sleep queue in that turnstile queue's
+     are assigned to a lock held by an owning thread.  Thus, when one thread
+     is	enqueued onto a	turnstile, it can lend its priority to the owning
+     thread.  If this sounds confusing,	we need	to describe it better.
+
+The idea behind turnstiles is the fact that in any moment, there cannot be more
+semaphores used for waiting than there is threads in the program. This assumption
+allows us to create no more mutexes than threads which can lead to decreased
+usage of memory and number of system calls.
+The first locking thread lends its semaphore to the mutex pool and lets the next
+threads to sleep on it. Every next thread to sleep on the same turnstile gives
+its semaphore to the pool which will be then taken by the thread that signals
+and leaves the turnstile.
